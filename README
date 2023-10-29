@@ -1,0 +1,151 @@
+OVERVIEW OF THE SCRIPTS COLLECTED IN THIS FOLDER
+This repository contains the analysis scripts that were used to analyze the data related to the paper "Freezing of gait in Parkinson’s disease is related to imbalanced stopping-related cortical activity" (Cockx et al.).
+It is subdivided in the following folders:
+1. PREPROCESSING: containing all the scripts that were used to preprocess the nirs (and the motion) data
+2. STATISTICS: containing all the scripts that were used to statistically analyze the nirs data
+3. PLOTTING: scripts that were used for plotting cortical maps of the data
+4. BEHAVIOR: scripts that were used for analyzing behavioral data, including the FOG events and the motion data
+5. external: containing scripts from external toolboxes/sources that were used to analyze this data.
+Note that for the analysis in MATLAB the FieldTrip and Homer3 toolbox were used.
+
+PREPROCESSING
+=============
+MAIN
+Main script that runs the preprocessing of the nirs data. It saves this preprocessed data for each participant.
+Dependencies: load_run_info.m; load_events.m; remove_badchannels.m; nirs_preprocessing.m; define_trials.m; age2DPF.m (see: external)
+
+LOAD_RUN_INFO
+Loads information about the runs for each participant. E.g. if the runs are complete or not and what the valid window for this run is.
+
+LOAD_EVENTS
+Loads the (ELAN) events for the given participant and stores it in the run structure. It also redefines some of the motion events based on the motion data by using a better function (v2) than was used for the import events for ELAN.
+Dependencies: rotation_translation.m; find_turns_v2.m; find_startstop_v1.m; find_startstop_v2.m
+
+REMOVE_BADCHANNELS
+This function detects the bad channels and saves this info in the info field of each run (run.info). Bad channels were defined as channels with a signal quality index (Sapia et al.2020) of less than 2 during > 50% of the standing still periods. Additionally the channels that were bad in >50% of the runs, and all short channels that were bad in at least one run are marked as bad channels.
+Dependencies: artinis fieldtrip functions; table2FT
+
+NIRS_PREPROCESSING
+This function performs the preprocessing steps on the fNIRS data.
+Dependencies: detect_MA.m; corr_MAspline.m; corr_MAwavelet.m; shortchannel_regression.m; auxchannel_regression.m;
+
+DEFINE_TRIALS
+This function segments the data into trials and adds info about each trial.
+Dependencies: table2FT.m
+
+Subfunctions:
+-------------
+ROTATION_TRANSLATION
+This function determines the translation vector and rotation angle to reframe the motion data into the new coordinate system based on the trajectory of the center of mass.
+
+FIND_TURNS_V2
+This function detects the 180 degree turns based on the pelvis position. The begin and end of the turn were then calculated as the timepoints where the pelvis orientation crossed a regression line with more than 5° (see also supplementary material). This function was partly based
+on:
+- Salarian A, et al. iTUG, a sensitive and reliable measure of mobility. (IEEE Trans Neural Syst Rehabil Eng) doi:10.1109/TNSRE.2010.2047606
+- Miller Koop M, et al. Quantifying turning behavior and gait in Parkinson's disease using mobile technology. (IBRO Rep.) doi:10.1016/j.ibror.2018.06.002
+Dependencies: q2e.m (see: external)
+
+FIND_STARTSTOP_V1
+This function detects the timepoints when a participant starts and stops when walking. This was defined as an increase/decrease in horizontal pelvis velocity over a threshold of 0.3 m/s after a start/stop signal was given.
+Dependencies: reframe.m
+
+FIND_STARTSTOP_V2
+This function detects the timepoints when a participant starts and stops when walking. This was defined as an increase/decrease in horizontal pelvis velocity over a threshold of 0.1 m/s after a start/stop signal was given.
+
+REFRAME
+This function uses the translation vector, rotation angle and door correction of ROTATION_TRANSLATION to reframe the input data into the new coordinate system.
+
+TABLE2FT
+Converts event in table format with timestamps to events in Fieldtrip format (structure format) with samples based on the given sample frequency
+
+DETECT_MA
+This detects motion artifacts with a moving average and is an adapted version from Homer 3: hrmR_MotionArtefactByChannel. The parameters are defined at the beginning of the function (tMotion = 0.5; tMask = 1; std_thresh = 65; amp_thresh = 0.05)
+
+CORR_MASPLINE
+This function corrects the motion artifacts with a spline interpolation and is an adapted version of the Homer 3 function:hmrR_MotionCorrectSpline (p = 0.99)
+
+CORR_MAWAVELET
+This function corrects the motion artifacts with a wavelet function. This is an adapted version of the Homer 3 function: hmrR_MotionCorrectWavelet. It first downsamples the data to 10 Hz to fasten the processing and then reupsamples it to 60 Hz.
+Dependencies: Homer3 (to load db2 wavelet)
+
+SHORTCHANNEL_REGRESSION
+shortchannel_regression performs reference channel subtraction for fNIRS data. It is an adaptation from ft_nirs_referencechannelsubstraction (http://www.fieldtriptoolbox.org/reference/ft_nirs_referencechannelsubtraction/).
+
+AUXCHANNEL_REGRESSION
+Auxchannel_regression performs a OLS regression of the fNIRS data with the long channels as the dependent variable and the short channels and movement data as regressors. It first z-transforms the data and uses only the 8 first principle components of the short channel data. The residuals of the regression analysis are the output.
+
+
+STATISTICS
+==========
+CREATE_DATAFRAME_NRLGAIT
+Converts the trial data of all normal gait events into a table which can be read in by R. It contains the fNIRS data averaged over 4 time windows (baseline, pre, post, and post 2) for each channel, trial and participant with extra info about each trial (baseline = [-10 -5]; pre = [-3 0]; post = [0 3]; post2 = [7 10]).
+
+CREATE_DATAFRAME_FOG
+Converts the trial data of all FOG events into a table which can be read in by R. It contains the fNIRS data averaged over 4 time windows (baseline, pre, post, and post2) for each channel, trial and participant with extra info about each trial (baseline = [-10 -5]; pre = [-3 0]; post = [0 3]; post2 = [7 10]).
+
+STAT_MODEL_TYPE1 (R script)
+This is the main code that runs the first type of model, namely to compare the cortical activity of the PD group to the HC group for the various gait events when no freezing occurred.
+Dependencies: run_model.R; check_LR_diff.R
+
+STAT_MODEL_TYPE2 (R script)
+This is the main code that runs the second type of model, namely to compare the cortical activity during a freezing event to a voluntary stop and to a successful event of the same type as the freezing event (e.g., turning freeze vs stop vs successful turn).
+Dependencies: run_model.R
+
+PLOT_ALLROI (R script)
+This script creates one plot with the estimated effects for all ROIs and all groups for the condition you fill in (in conditions <- c(...)). There are different parts in the script for type 1 vs type 2 models
+
+MODEL_DIAGNOSTICS (R script)
+This script runs an analysis on the created models to check them for assumptions. It includes caterpillar plots, Gelman-Rubin statistics, checking for divergent transitions, effective sample size and a sensitivity analysis.
+
+Subfunctions:
+-------------
+RUN_MODEL
+This function runs the actual Bayesian model for the given data with or without averaging it over channels belonging to the same ROI.
+Dependencies: stat_table.R
+
+STAT_TABLE
+Function that creates a summary for all fixed effect of the tested ROI with the probability intervals.
+
+CHECK_LR_DIFF
+This function tests wether there are statistical differences between the two hemispheres or whether there is a significant interaction effect of the hemisphere with the direction (of the turn).
+Dependencies: stat_table.R
+
+
+PLOTTING
+========
+BLOCK_AVERAGING
+Performs a first quick analysis based on the grand average of the nirs data over participants (without Bayesian statistics).
+Dependencies: timelock.m; grandaverage.m
+
+TOPOPLOT_MODELESTIMATES
+This script creates topoplots based on the model estimates of each channel.
+
+Subfunctions:
+-------------
+TIMELOCK
+Computes the timelock average for the given participant and the given condition. It baseline corrects the data if asked for.
+
+GRANDAVERAGE
+Computes the block average over multiple participants for a given condition and visualizes this in multiple plots and videos.
+Dependencies: plotCI.m
+
+PLOTCI
+Plots grand average data with confidence intervals.
+
+
+BEHAVIORAL_ANALYSIS
+===================
+FOG_EVENTS
+Analyzes the FOG events and provides descriptional statistics of the observed FOG events.
+
+BEHAVIORAL_ANALYSIS
+This script calculates and plots a variety of descriptional statistics based on the behavioral (motion) data. For instance, it can plot the walking speed during various conditions, calculates the average turn duration, or calculates at which point of the turn/doorway the FOG occured.
+
+
+external
+========
+AGE2DPF
+this function calculates the DPF based on age and wavelength(wl) as given by the formula of Scholkmann & Wolf, 2013 (https://doi.org/10.1117/1.JBO.18.10.105004)
+
+Q2E
+Convert quaternions to Euler angles Euler angles rotation sequence: z-y'-x'' (yaw, pitch, roll). The Euler angles rotation is intrinsic, i.e., rotate along new axes (J. Chen, July, 2019)
